@@ -5,7 +5,7 @@ Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner
 
 ```
 [S510 Knopf] → scanbd → scan.sh
-                 scanimage (ADF Duplex, Farbe, 300 dpi, Leerseiten/Zuschnitt/Deskew im Treiber)
+                 scanimage (ADF Duplex, Farbe, 300 dpi, Deskew/Despeck im Treiber)
                  Tesseract-Lageerkennung (kopfstehende Seiten drehen, kein OCR)
                  pnmnorm (Papierhintergrund auf Weiß), Leerseiten entfernen
                  PNG mit 8-Farben-Palette (~150–250 KB/Seite)
