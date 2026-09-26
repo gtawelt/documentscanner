@@ -6,8 +6,10 @@ Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner
 ```
 [S510 Knopf] → scanbd → scan.sh
                  scanimage (ADF Duplex, Farbe, 300 dpi, Deskew/Despeck im Treiber)
+             → process.py (Python, Pillow + numpy)
                  Tesseract-Lageerkennung (kopfstehende Seiten drehen, kein OCR)
-                 pnmnorm (Papierhintergrund auf Weiß), Leerseiten entfernen
+                 Weißabgleich: Papierton + Durchscheinendes → weiß, farbige Tinte bleibt
+                 Schieflage anhand der Textzeilen korrigieren, Leerseiten entfernen
                  PNG mit 8-Farben-Palette (~150–250 KB/Seite)
                  img2pdf → lokaler Spool
              → deliver.sh (sofort + alle 60 s per Timer)
@@ -51,15 +53,17 @@ Danach Zugangsdaten für den Share in `/etc/documentscanner/smb.cred` eintragen 
 Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/documentscanner.default](deploy/documentscanner.default)):
 - **Ausgabeformat:** `IMAGE_FORMAT=palette` (Standard) speichert jede Seite als PNG mit 8 Farben – scharf und
   ~150–250 KB/Seite. Für Fotos/farbige Grafiken `IMAGE_FORMAT=jpeg`.
-- **Hintergrund:** `NORMALIZE_OPTS="-bvalue=60 -wvalue=190"` zieht getöntes Papier und durchscheinende
-  Rückseiten auf Weiß. Bei grauem Papier oder blasser Schrift `wvalue` anpassen.
+- **Hintergrund & Tinte:** Weißabgleich auf den Papierton, danach wird alles Helle und Farblose
+  (getöntes Papier, durchscheinende Rückseiten) weiß. Farbige Tinte bleibt erhalten und wird nachgedunkelt.
+  Stellschrauben: `WHITE_POINT` (kleiner = aggressiver), `INK_GAMMA`, `COLOR_BOOST`.
+- **Schieflage:** Der Treiber korrigiert nur bei klarer Papierkante (`SWDESKEW`); zusätzlich richtet
+  `process.py` die Seite an den Textzeilen aus (`DESKEW`).
 - **Drehung & Reihenfolge:** Die Lage wird per Tesseract-OSD für das ganze Dokument per Mehrheit bestimmt.
   Steht der Stapel auf dem Kopf, war er gewendet eingelegt – dann werden Vorder- und Rückseiten getauscht
   (`DUPLEX_SWAP_ON_180`).
-- **Leerseiten** entfernt das Skript selbst (`BLANK_THRESHOLD`), nicht der Treiber – sonst verrutschen die
+- **Leerseiten** entfernt `process.py` (`BLANK_THRESHOLD`, Rand wird ignoriert), nicht der Treiber – sonst verrutschen die
   Vorder-/Rückseiten-Paare.
 - **Zuschnitt** im Treiber (`SWCROP`) ist aus, weil er bei dünnem Papier in den Inhalt schneidet.
-- `unpaper` ist verfügbar, aber aus, weil es bei Farbscans auf getöntem Papier Kachel-Artefakte erzeugt.
 
 **Einstellen an echten Scans:** `KEEP_RAW=1` setzen, dann landen die unbearbeiteten Seiten in
 `/var/lib/documentscanner/raw/` (~25 MB/Seite!). Mit

@@ -12,12 +12,12 @@ PAGE_HEIGHT=297
 # Software-Bildkorrektur im SANE-fujitsu-Backend
 # Auf Papierkante zuschneiden. Aus: schneidet bei dünnem/hellem Papier in den Inhalt
 SWCROP=no
-# Schieflage korrigieren
+# Schieflage korrigieren (greift nur bei klarer Papierkante, siehe auch DESKEW)
 SWDESKEW=yes
 # Staubpunkte entfernen (Größe in Pixel, 0 = aus)
 SWDESPECK=1
 
-# --- Nachbearbeitung ---------------------------------------------------------
+# --- Aufbereitung (scripts/process.py) ---------------------------------------
 # Kopfstehende/gedrehte Seiten per Tesseract-Lageerkennung (nur OSD, kein OCR) drehen.
 # Gedreht wird das ganze Dokument per Mehrheitsentscheid.
 AUTOROTATE=1
@@ -28,26 +28,37 @@ PAGE_ROTATE_CONF=6
 # Steht das Dokument auf dem Kopf, war der Stapel gewendet: Vorder-/Rückseiten tauschen
 DUPLEX_SWAP_ON_180=1
 
-# Papierhintergrund und durchscheinende Rückseiten auf Weiß ziehen (pnmnorm):
-# Helligkeit >= wvalue wird weiß, <= bvalue schwarz. Bei grauem Papier wvalue senken.
-NORMALIZE=1
-NORMALIZE_OPTS="-bvalue=60 -wvalue=190"
+# Schieflage anhand der Textzeilen korrigieren (bis zu DESKEW_MAX_ANGLE Grad)
+DESKEW=1
+DESKEW_MAX_ANGLE=10
 
-# Leere Seiten weglassen: Anteil dunkler Pixel in Prozent, unter dem eine Seite als leer gilt
+# Weißabgleich auf den Papierton, getöntes Papier und durchscheinende Rückseiten
+# werden weiß, farbige Tinte bleibt erhalten.
+CLEAN=1
+# Anteil der Papierhelligkeit, ab dem ein Farbkanal weiß wird.
+# Kleiner = mehr Durchscheinendes weg, aber blasse Schrift gefährdet.
+WHITE_POINT=0.85
+BLACK_POINT=60
+# > 1 dunkelt blasse Schrift nach
+INK_GAMMA=2.0
+# 0..1: dunkelt farbige Tinte (Kugelschreiber, Stempel) zusätzlich ab
+COLOR_BOOST=0.7
+# Pixel, die danach in allen Kanälen mindestens so hell sind, werden reinweiß
+WHITE_SNAP=0.8
+
+# Leere Seiten weglassen: Prozent Tinten-Pixel (ohne Rand), unter denen eine Seite als leer gilt
 SKIP_BLANK=1
-BLANK_THRESHOLD=0.1
+BLANK_THRESHOLD=0.05
+# Randbereich (Anteil je Seite), der bei der Leerseiten-Erkennung ignoriert wird
+BLANK_MARGIN=0.06
 
-# unpaper: bei Farbscans auf getöntem Papier entstehen Kachel-Artefakte, daher aus
-UNPAPER=0
-UNPAPER_OPTS=""
-
-# Rohdaten jedes Scans in RAW_DIR aufheben (zum Einstellen der Aufbereitung)
+# Rohdaten jedes Scans in RAW_DIR aufheben (zum Einstellen der Aufbereitung, ~25 MB/Seite)
 KEEP_RAW=0
 RAW_DIR=/var/lib/documentscanner/raw
 
 # --- PDF ---------------------------------------------------------------------
-# palette: PNG mit wenigen Farben – scharf und sehr klein (~150–250 KB/Seite), ideal für Schriftstücke
-# jpeg:    für Fotos/farbige Grafiken (~500 KB/Seite)
+# palette: PNG mit wenigen Farben – scharf und klein (~200–300 KB/Seite), ideal für Schriftstücke
+# jpeg:    für Fotos/farbige Grafiken
 # png:     verlustfrei, sehr groß
 IMAGE_FORMAT=palette
 PALETTE_COLORS=8

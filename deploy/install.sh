@@ -18,11 +18,12 @@ fi
 log "Pakete installieren"
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    sane-utils libsane1 scanbd img2pdf unpaper netpbm tesseract-ocr tesseract-ocr-osd cifs-utils util-linux usbutils
+    sane-utils libsane1 scanbd tesseract-ocr tesseract-ocr-osd \
+    python3 python3-numpy python3-pil python3-img2pdf cifs-utils util-linux usbutils
 
 log "Skripte nach ${PREFIX} installieren"
 install -d "${PREFIX}/scripts"
-install -m 0755 "${REPO}/scripts/scan.sh" "${REPO}/scripts/deliver.sh" "${PREFIX}/scripts/"
+install -m 0755 "${REPO}/scripts/scan.sh" "${REPO}/scripts/process.py" "${REPO}/scripts/deliver.sh" "${PREFIX}/scripts/"
 
 if [ ! -f /etc/default/documentscanner ]; then
     install -m 0644 "${REPO}/deploy/documentscanner.default" /etc/default/documentscanner
