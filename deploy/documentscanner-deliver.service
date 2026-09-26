@@ -1,0 +1,8 @@
+[Unit]
+Description=documentscanner: PDFs aus dem Spool auf den SMB-Share verschieben
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/documentscanner/scripts/deliver.sh

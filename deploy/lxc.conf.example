@@ -1,0 +1,9 @@
+# Ergänzungen für /etc/pve/lxc/<CTID>.conf auf pve-len (privilegierter Container)
+#
+# CIFS-Mounts im Container erlauben
+features: mount=cifs
+# USB-Geräte (Major 189) freigeben und den kompletten USB-Bus einbinden.
+# Dadurch wird der Scanner auch nach Aus-/Einschalten wieder gefunden,
+# obwohl sich seine USB-Gerätenummer dabei ändert.
+lxc.cgroup2.devices.allow: c 189:* rwm
+lxc.mount.entry: /dev/bus/usb dev/bus/usb none bind,optional,create=dir

@@ -1,0 +1,14 @@
+#!/bin/bash
+# Wird von scanbd bei einem Tastendruck am Scanner aufgerufen.
+# Die ScanSnap S510 hat nur einen Knopf, der als Aktion "scan" gemeldet wird.
+
+echo "scanbd: Device ${SCANBD_DEVICE} Action ${SCANBD_ACTION}"
+
+case "${SCANBD_ACTION}" in
+    scan*)
+        /opt/documentscanner/scripts/scan.sh "${SCANBD_DEVICE}"
+        ;;
+    *)
+        echo "scanbd: Aktion ${SCANBD_ACTION} wird ignoriert"
+        ;;
+esac

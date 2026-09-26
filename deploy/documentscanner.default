@@ -1,0 +1,51 @@
+# Konfiguration für documentscanner (/etc/default/documentscanner)
+
+# --- Scan -------------------------------------------------------------------
+# Color | Gray | Lineart
+MODE=Color
+RESOLUTION=300
+SOURCE="ADF Duplex"
+# Seitengröße in mm (A4)
+PAGE_WIDTH=210
+PAGE_HEIGHT=297
+
+# Software-Bildkorrektur im SANE-fujitsu-Backend
+# Leerseiten überspringen (Schwellwert in %, 0 = aus)
+SWSKIP=2.5
+# Auf Papierkante zuschneiden (entfernt schwarzen Hintergrund/Ränder)
+SWCROP=yes
+# Schieflage korrigieren
+SWDESKEW=yes
+# Staubpunkte entfernen (Größe in Pixel, 0 = aus)
+SWDESPECK=1
+
+# --- Nachbearbeitung ---------------------------------------------------------
+# Kopfstehende/gedrehte Seiten per Tesseract-Lageerkennung (nur OSD, kein OCR) drehen
+AUTOROTATE=1
+# Mindest-Konfidenz der Lageerkennung, darunter wird nicht gedreht
+ROTATE_MIN_CONF=2
+
+# Papierhintergrund auf Weiß ziehen (pnmnorm): die hellsten -wpercent Prozent
+# der Pixel werden weiß, die dunkelsten -bpercent Prozent schwarz
+NORMALIZE=1
+NORMALIZE_OPTS="-keephues -bpercent=0.5 -wpercent=40"
+
+# unpaper: bei Farbscans auf getöntem Papier entstehen Kachel-Artefakte, daher aus
+UNPAPER=0
+UNPAPER_OPTS=""
+
+# Rohdaten jedes Scans in RAW_DIR aufheben (zum Einstellen der Aufbereitung)
+KEEP_RAW=0
+RAW_DIR=/var/lib/documentscanner/raw
+
+# --- PDF ---------------------------------------------------------------------
+# jpeg (kleine Dateien) | png (verlustfrei, sehr groß)
+IMAGE_FORMAT=jpeg
+JPEG_QUALITY=80
+
+# --- Verzeichnisse -----------------------------------------------------------
+WORK_DIR=/var/lib/documentscanner/work
+FAILED_DIR=/var/lib/documentscanner/failed
+SPOOL_DIR=/var/spool/documentscanner/outbox
+# CIFS-Mount von \\192.168.0.10\DATA\dokumente\scan
+TARGET_DIR=/mnt/scan

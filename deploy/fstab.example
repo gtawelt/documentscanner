@@ -1,0 +1,1 @@
+//192.168.0.10/DATA/dokumente/scan /mnt/scan cifs credentials=/etc/documentscanner/smb.cred,uid=0,gid=0,file_mode=0664,dir_mode=0775,iocharset=utf8,vers=3.0,_netdev,nofail 0 0

@@ -1,47 +1,60 @@
 # documentscanner
-`documentscanner` allows you to transform (almost) any [ADF](https://en.wikipedia.org/wiki/Automatic_document_feeder) scanner into a document scanner that produces OCRed PDFs. All you need is
-* a [sane](http://sane-project.org/sane-supported-devices.html)-compatible ADF scanner
-* a raspberry pi
-* (optional) a more powerful host to run the OCR tasks
 
-## Setup instructions
-1. Check out `documentscanner` onto a raspberry pi: `$ git checkout https://github.com/BastianPoe/documentscanner.git ; cd documentscanner`
-1. Install sane and other dependencies`$ apt-get install sane sane-utils bash unpaper tesseract-ocr tesseract-ocr-deu imagemagick bc poppler-utils findutils scanbd`
-1. Install scanbd script: `$ mkdir -p /etc/scanbd/scripts ; cp scanbd/test.script /etc/scanbd/scripts/`
-1. Enable scanbd: `$ systemctl enable scanbd`
-1. Restart scanbd: `$ systemctl restart scanbd`
-1. Create inbox and outbox: `$ mkdir -p /inbox /outbox`
-1. Start document processor: `$ cd scripts ; ./process.sh /inbox /outbox`
-1. Done
+Macht aus einem Fujitsu **ScanSnap S510** einen „Knopf drücken → PDF in Paperless“-Scanner.
+Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner per USB hängt.
 
-## What if it does not work
-1. Check if `sane` recognizes your scanner via `$ scanimage -L`
-1. Check the logs of `scanbd` via `$ journalctl -f`. You should be seeing log outputs whenever you press a button
-1. Modify the events scanbd triggers for in `/etc/scanbd/scripts/test.script` (currently: scan and email)
-1. Check if scanned raw documents end up in `/inbox`
-1. Check logfiles of the processor
-1. Check if PDFs end up in `/outbox`
+```
+[S510 Knopf] → scanbd → scan.sh
+                 scanimage (ADF Duplex, Farbe, 300 dpi, Leerseiten/Zuschnitt/Deskew im Treiber)
+                 unpaper (schwarze Ränder, Flecken, Rauschen, Restschiefe)
+                 img2pdf → lokaler Spool
+             → deliver.sh (sofort + alle 60 s per Timer)
+                 → \\192.168.0.10\DATA\dokumente\scan → Paperless-ngx (OCR)
+```
 
-## How it works
+**Warum kein OCR im Container?** Paperless-ngx führt beim Import ohnehin OCRmyPDF/Tesseract aus.
+Vorheriges OCR wäre doppelte Arbeit bzw. Paperless würde die (schlechtere) vorhandene Textschicht übernehmen.
 
-### Scanning
-`documentscanner` uses [scanbd](https://sourceforge.net/p/scanbd/code/HEAD/tree/) to wait for someone to press a button on the scanner. This triggers the script in `/etc/scanbd/scripts/test.script` which differentiates which button has been pressed. The script calls `/home/pi/documentscanner/scripts/scan.sh` and scans all pages available into a folder in `/inbox`. After completing the scan, a file called `complete` is placed in the scan directory.
+Ursprünglich basiert das Projekt auf [BastianPoe/documentscanner](https://github.com/BastianPoe/documentscanner).
 
-### PDF conversion
-The processor checks every 10s in `/inbox` and if there is a new document with the `complete` flag, the document is processed. Initially, we use [identify](https://www.imagemagick.org/script/identify.php) with a heuristic to identify and remove empty pages. Then, each page is processed using [unpaper](http://mcs.une.edu.au/doc/unpaper/doc/index.html) to remove the background, etc. Subsequently, the pages are OCRed using [tesseract](https://github.com/tesseract-ocr/tesseract) and converted to PDFs. Finally, the individual PDFs are joined into one using [pdfunite](https://github.com/mtgrosser/pdfunite) and the scan directory is deleted.
+## Einrichtung
 
-### Maintenance required
-Incomplete scans (e.g. those where the ADF pulled multiple pages at once) are aborted and never receive the `complete` flag and hence are not processed by the processor. Check `/inbox` from time to time to see, which documents have ended up there and delete them.
+### 1. Container auf pve-len anlegen
+Privilegierter Debian-13-Container, z. B.:
 
-### (Optional) Speed up PDF generation
-I run the processor in a Docker container on my [Synology](https://www.synology.com) NAS. This is way faster than on the raspberry and does not slow down subsequent scans. The required setup steps are quite easy:
+```bash
+pct create 120 local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst --hostname scanner --unprivileged 0 --cores 2 --memory 1024 --rootfs local-lvm:8 --net0 name=eth0,bridge=vmbr0,ip=dhcp --onboot 1
+```
 
-1. Create a new shared directory on your NAS and expose it via NFS to your raspberry pi
-1. Install autofs: `$ apt-get install autofs`
-1. Add NFS mounting to /etc/auto.misc: `documentarchive -rw,soft,intr,rsize=8192,wsize=8192 192.168.1.26:/volume1/documentarchive`
-1. Enable auto.misc by adding the following line to `/etc/auto.master`: `/misc   /etc/auto.misc`
-1. Edit your `/etc/scanbd/scripts/test.script` to place scans into your output folder. E.g. `FOLDER="/misc/documentarchive/scans_raw`
-1. Pull `bastianpoe/document_archive` into the [Docker Station](https://www.synology.com/de-de/dsm/feature/docker) on your NAS
-1. Map `/inbox` onto the NFS share created above and `/outbox` onto where the PDFs shall be stored
-1. Start the docker container
-1. Done
+(Template-Name mit `pveam available | grep debian-13` prüfen.)
+
+Dann die Zeilen aus [deploy/lxc.conf.example](deploy/lxc.conf.example) an `/etc/pve/lxc/120.conf` anhängen
+und den Container starten. Auf dem Host darf **kein** scanbd/saned laufen, das den Scanner belegt.
+
+### 2. Im Container installieren
+
+```bash
+apt-get install -y git && git clone <dieses-repo> /root/documentscanner
+/root/documentscanner/deploy/install.sh
+```
+
+Danach Zugangsdaten für den Share in `/etc/documentscanner/smb.cred` eintragen und `mount /mnt/scan` testen.
+
+### 3. Paperless-ngx
+- Consume-Verzeichnis von Paperless auf `\\192.168.0.10\DATA\dokumente\scan` legen.
+- `PAPERLESS_CONSUMER_POLLING=10` setzen – auf SMB-Freigaben funktioniert inotify nicht.
+- Dateien werden erst als `*.pdf.tmp` geschrieben und dann umbenannt, Paperless sieht nie halbe Dateien.
+
+## Konfiguration
+Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/documentscanner.default](deploy/documentscanner.default)):
+Farbmodus, Auflösung, Leerseiten-Schwelle, Zuschnitt/Deskew/Despeck im Treiber, unpaper an/aus
+(`UNPAPER_OPTS="--no-blackfilter"`, falls dunkle Bilder/Logos angefressen werden), JPEG/PNG.
+
+## Fehlersuche
+- Scanner auf Host und im Container sichtbar? `lsusb | grep -i fujitsu`
+- SANE findet ihn? scanbd belegt den Scanner, daher vorher stoppen:
+  `systemctl stop scanbd; SANE_CONFIG_DIR=/etc/scanbd/sane.d scanimage -L; systemctl start scanbd`
+- Knopfdruck/Scan-Log: `journalctl -u scanbd -f`
+- Zustellung: `journalctl -u documentscanner-deliver -f`, Rückstau in `/var/spool/documentscanner/outbox`
+- Abgebrochene Scans (Papierstau, Doppeleinzug) landen **nicht** in Paperless, sondern in
+  `/var/lib/documentscanner/failed/` – regelmäßig kontrollieren und aufräumen.
