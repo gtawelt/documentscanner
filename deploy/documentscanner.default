@@ -10,25 +10,32 @@ PAGE_WIDTH=210
 PAGE_HEIGHT=297
 
 # Software-Bildkorrektur im SANE-fujitsu-Backend
-# Leerseiten überspringen (Schwellwert in %, 0 = aus)
-SWSKIP=2.5
-# Auf Papierkante zuschneiden (entfernt schwarzen Hintergrund/Ränder)
-SWCROP=yes
+# Auf Papierkante zuschneiden. Aus: schneidet bei dünnem/hellem Papier in den Inhalt
+SWCROP=no
 # Schieflage korrigieren
 SWDESKEW=yes
 # Staubpunkte entfernen (Größe in Pixel, 0 = aus)
 SWDESPECK=1
 
 # --- Nachbearbeitung ---------------------------------------------------------
-# Kopfstehende/gedrehte Seiten per Tesseract-Lageerkennung (nur OSD, kein OCR) drehen
+# Kopfstehende/gedrehte Seiten per Tesseract-Lageerkennung (nur OSD, kein OCR) drehen.
+# Gedreht wird das ganze Dokument per Mehrheitsentscheid.
 AUTOROTATE=1
-# Mindest-Konfidenz der Lageerkennung, darunter wird nicht gedreht
+# Mindest-Summe der Konfidenzen, damit das Dokument gedreht wird
 ROTATE_MIN_CONF=2
+# Ab dieser Konfidenz darf eine einzelne Seite abweichend gedreht werden (Querformat)
+PAGE_ROTATE_CONF=6
+# Steht das Dokument auf dem Kopf, war der Stapel gewendet: Vorder-/Rückseiten tauschen
+DUPLEX_SWAP_ON_180=1
 
-# Papierhintergrund auf Weiß ziehen (pnmnorm): die hellsten -wpercent Prozent
-# der Pixel werden weiß, die dunkelsten -bpercent Prozent schwarz
+# Papierhintergrund und durchscheinende Rückseiten auf Weiß ziehen (pnmnorm):
+# Helligkeit >= wvalue wird weiß, <= bvalue schwarz. Bei grauem Papier wvalue senken.
 NORMALIZE=1
-NORMALIZE_OPTS="-keephues -bpercent=0.5 -wpercent=40"
+NORMALIZE_OPTS="-bvalue=60 -wvalue=190"
+
+# Leere Seiten weglassen: Anteil dunkler Pixel in Prozent, unter dem eine Seite als leer gilt
+SKIP_BLANK=1
+BLANK_THRESHOLD=0.1
 
 # unpaper: bei Farbscans auf getöntem Papier entstehen Kachel-Artefakte, daher aus
 UNPAPER=0
@@ -39,9 +46,12 @@ KEEP_RAW=0
 RAW_DIR=/var/lib/documentscanner/raw
 
 # --- PDF ---------------------------------------------------------------------
-# jpeg (kleine Dateien) | png (verlustfrei, sehr groß)
-IMAGE_FORMAT=jpeg
-JPEG_QUALITY=80
+# palette: PNG mit wenigen Farben – scharf und sehr klein (~150–250 KB/Seite), ideal für Schriftstücke
+# jpeg:    für Fotos/farbige Grafiken (~500 KB/Seite)
+# png:     verlustfrei, sehr groß
+IMAGE_FORMAT=palette
+PALETTE_COLORS=8
+JPEG_QUALITY=75
 
 # --- Verzeichnisse -----------------------------------------------------------
 WORK_DIR=/var/lib/documentscanner/work
