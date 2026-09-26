@@ -5,7 +5,7 @@ Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner
 
 ```
 [S510 Knopf] → scanbd → scan.sh
-                 scanimage (ADF Duplex, Farbe, 300 dpi, Deskew/Despeck im Treiber)
+                 scanimage (ADF Duplex, Farbe, 300 dpi, nur Despeck im Treiber)
              → process.py (Python, Pillow + numpy)
                  Tesseract-Lageerkennung (kopfstehende Seiten drehen, kein OCR)
                  Weißabgleich: Papierton + Durchscheinendes → weiß, farbige Tinte bleibt
@@ -59,7 +59,7 @@ Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/do
 - **Hintergrund & Tinte:** Weißabgleich auf den Papierton, danach wird alles Helle und Farblose
   (getöntes Papier, durchscheinende Rückseiten) weiß. Farbige Tinte bleibt erhalten und wird nachgedunkelt.
   Stellschrauben: `WHITE_POINT` (kleiner = aggressiver), `INK_GAMMA`, `COLOR_BOOST`.
-- **Schieflage:** Der Treiber korrigiert nur bei klarer Papierkante (`SWDESKEW`); zusätzlich richtet
+- **Schieflage:** Die Korrektur im Treiber (`SWDESKEW`) ist aus, sie erkennt die Kante schlecht und schneidet Ecken ab. Stattdessen richtet
   `process.py` die Seite an den Textzeilen aus (`DESKEW`).
 - **Drehung:** Die Lage wird per Tesseract-OSD für das ganze Dokument per Mehrheit bestimmt.
 - **Duplex-Reihenfolge:** Liegt der Stapel mit der Schrift nach oben im Einzug, liefert der Scanner je Blatt

@@ -12,8 +12,9 @@ PAGE_HEIGHT=297
 # Software-Bildkorrektur im SANE-fujitsu-Backend
 # Auf Papierkante zuschneiden. Aus: schneidet bei dünnem/hellem Papier in den Inhalt
 SWCROP=no
-# Schieflage korrigieren (greift nur bei klarer Papierkante, siehe auch DESKEW)
-SWDESKEW=yes
+# Schieflage im Treiber korrigieren. Aus: erkennt die Papierkante bei hellem Papier schlecht
+# und schneidet beim Drehen Ecken ab – das übernimmt DESKEW in process.py
+SWDESKEW=no
 # Staubpunkte entfernen (Größe in Pixel, 0 = aus)
 SWDESPECK=1
 
