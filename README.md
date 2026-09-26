@@ -6,7 +6,8 @@ Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner
 ```
 [S510 Knopf] → scanbd → scan.sh
                  scanimage (ADF Duplex, Farbe, 300 dpi, Leerseiten/Zuschnitt/Deskew im Treiber)
-                 unpaper (schwarze Ränder, Flecken, Rauschen, Restschiefe)
+                 Tesseract-Lageerkennung (kopfstehende Seiten drehen, kein OCR)
+                 pnmnorm (Papierhintergrund auf Weiß → sauberer, kleinere Dateien)
                  img2pdf → lokaler Spool
              → deliver.sh (sofort + alle 60 s per Timer)
                  → \\192.168.0.10\DATA\dokumente\scan → Paperless-ngx (OCR)
@@ -47,8 +48,11 @@ Danach Zugangsdaten für den Share in `/etc/documentscanner/smb.cred` eintragen 
 
 ## Konfiguration
 Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/documentscanner.default](deploy/documentscanner.default)):
-Farbmodus, Auflösung, Leerseiten-Schwelle, Zuschnitt/Deskew/Despeck im Treiber, unpaper an/aus
-(`UNPAPER_OPTS="--no-blackfilter"`, falls dunkle Bilder/Logos angefressen werden), JPEG/PNG.
+Farbmodus, Auflösung, Leerseiten-Schwelle, Zuschnitt/Deskew/Despeck im Treiber, automatische Drehung,
+Hintergrund-Aufhellung (`NORMALIZE_OPTS`), JPEG-Qualität. `unpaper` ist verfügbar, aber standardmäßig aus,
+weil es bei Farbscans auf getöntem Papier Kachel-Artefakte erzeugt.
+
+Zum Einstellen `KEEP_RAW=1` setzen: Die unbearbeiteten Seiten landen dann in `/var/lib/documentscanner/raw/`.
 
 ## Fehlersuche
 - Scanner auf Host und im Container sichtbar? `lsusb | grep -i fujitsu`
