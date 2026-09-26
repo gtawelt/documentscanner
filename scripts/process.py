@@ -7,7 +7,7 @@ Schritte je Dokument:
   1. Lage per Tesseract-OSD bestimmen (Mehrheitsentscheid über alle Seiten)
   2. je Seite: drehen, Weißabgleich + Hintergrund/Durchscheinen auf Weiß,
      Schieflage anhand der Textzeilen korrigieren, Leerseiten erkennen
-  3. bei gewendetem Duplex-Stapel Vorder-/Rückseiten tauschen
+  3. Duplex-Reihenfolge erkennen (Rückseite zuerst?) und ggf. tauschen
   4. als PNG mit Farbpalette (oder JPEG) in ein PDF schreiben
 
 Einstellungen kommen aus Umgebungsvariablen (siehe /etc/default/documentscanner).
@@ -37,9 +37,17 @@ RESOLUTION = env("RESOLUTION", 300, int)
 AUTOROTATE = env("AUTOROTATE", "1") == "1"
 ROTATE_MIN_CONF = env("ROTATE_MIN_CONF", 2.0, float)
 PAGE_ROTATE_CONF = env("PAGE_ROTATE_CONF", 6.0, float)
-DUPLEX_SWAP_ON_180 = env("DUPLEX_SWAP_ON_180", "1") == "1"
+# auto: aus Blättern mit einer leeren Seite erkennen, sonst DUPLEX_DEFAULT
+# front-first / back-first: fest vorgeben
+DUPLEX_ORDER = env("DUPLEX_ORDER", "auto")
+# back-first = Stapel liegt mit der Schrift nach oben im Einzug
+DUPLEX_DEFAULT = env("DUPLEX_DEFAULT", "front-first")
+# Sprache für das Lesen der Seitenzahlen
+OCR_LANG = env("OCR_LANG", "deu")
 DESKEW = env("DESKEW", "1") == "1"
-DESKEW_MAX_ANGLE = env("DESKEW_MAX_ANGLE", 10.0, float)
+DESKEW_MAX_ANGLE = env("DESKEW_MAX_ANGLE", 45.0, float)
+# Ab dieser Schieflage (Grad) wird gewarnt, dass Ränder außerhalb des Scanbereichs lagen
+SKEW_WARN = env("SKEW_WARN", 3.0, float)
 CLEAN = env("CLEAN", "1") == "1"
 # Anteil der Hintergrundhelligkeit, ab dem ein Farbkanal weiß wird
 WHITE_POINT = env("WHITE_POINT", 0.85, float)
@@ -102,6 +110,9 @@ def clean(img):
         a *= 1.0 - COLOR_BOOST * chroma
     # Fast weiße Pixel (Papierrauschen) auf reines Weiß setzen: sauberer und viel kleiner
     a[a.min(axis=2) >= WHITE_SNAP] = 1.0
+    # Kante des Scanbereichs (dunkle Linie am Bildrand) entfernen
+    border = max(1, RESOLUTION // 25)
+    a[:border], a[-border:], a[:, :border], a[:, -border:] = 1.0, 1.0, 1.0, 1.0
     return Image.fromarray((a * 255.0 + 0.5).astype(np.uint8), "RGB")
 
 
@@ -133,11 +144,37 @@ def skew_angle(img):
     return float(best)
 
 
+def straighten(img, angle):
+    """Dreht die Seite gerade, ohne Inhalt in den Ecken abzuschneiden, und schneidet
+    anschließend wieder auf die Originalgröße zu – mittig um den Inhalt."""
+    width, height = img.size
+    rotated = img.rotate(angle, resample=Image.BICUBIC, expand=True, fillcolor=(255, 255, 255))
+    mask = ink_mask(rotated, 4)
+    rows, cols = np.nonzero(mask.any(axis=1))[0], np.nonzero(mask.any(axis=0))[0]
+    if rows.size and cols.size:
+        cy, cx = (rows[0] + rows[-1]) * 2, (cols[0] + cols[-1]) * 2
+    else:
+        cy, cx = rotated.height // 2, rotated.width // 2
+    left = min(max(cx - width // 2, 0), rotated.width - width)
+    top = min(max(cy - height // 2, 0), rotated.height - height)
+    return rotated.crop((left, top, left + width, top + height))
+
+
 def is_blank(img):
     mask = ink_mask(img, 2)
     h, w = mask.shape
     my, mx = int(h * BLANK_MARGIN), int(w * BLANK_MARGIN)
-    inner = mask[my:h - my, mx:w - mx]
+    inner = mask[my:h - my, mx:w - mx].copy()
+    # Durchgehende Linien (Papierkante, Knick, Schatten) sind kein Inhalt:
+    # Zeilen/Spalten, die über ein Drittel dunkel sind, samt Nachbarn ausblenden
+    for axis in (1, 0):
+        lines = np.nonzero(inner.mean(axis=axis) > 0.33)[0]
+        for i in lines:
+            sl = slice(max(i - 3, 0), i + 4)
+            if axis == 1:
+                inner[sl, :] = False
+            else:
+                inner[:, sl] = False
     ratio = 100.0 * np.count_nonzero(inner) / inner.size
     return ratio < BLANK_THRESHOLD, ratio
 
@@ -153,6 +190,72 @@ def encode(img):
         pal = img.quantize(colors=PALETTE_COLORS, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
         pal.save(buf, "PNG", dpi=(RESOLUTION, RESOLUTION), optimize=True)
     return buf.getvalue()
+
+
+PAGE_NUMBER_PATTERNS = [
+    re.compile(r"Seite\s*(\d{1,3})\b", re.I),
+    re.compile(r"\b(\d{1,3})\s*von\s*\d{1,3}\b", re.I),
+    re.compile(r"^\s*[-–]\s*(\d{1,3})\s*[-–]\s*$", re.M),
+]
+
+
+def page_number(img):
+    """Seitenzahl aus Kopf- und Fußzeile lesen (nur diese Streifen werden per OCR gelesen)."""
+    h = img.height
+    strip = int(h * 0.12)
+    top, bottom = img.crop((0, 0, img.width, strip)), img.crop((0, h - strip, img.width, h))
+    both = Image.new("L", (img.width, 2 * strip), 255)
+    both.paste(top.convert("L"), (0, 0))
+    both.paste(bottom.convert("L"), (0, strip))
+    buf = io.BytesIO()
+    both.save(buf, "PNG", dpi=(RESOLUTION, RESOLUTION))
+    try:
+        text = subprocess.run(
+            ["tesseract", "stdin", "stdout", "-l", OCR_LANG, "--psm", "6", "--dpi", str(RESOLUTION)],
+            input=buf.getvalue(), capture_output=True, timeout=120,
+        ).stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    for pattern in PAGE_NUMBER_PATTERNS:
+        m = pattern.search(text)
+        if m and 0 < int(m.group(1)) < 1000:
+            return int(m.group(1))
+    return None
+
+
+def sequence_score(numbers):
+    """Wie gut die gefundenen Seitenzahlen zu ihren Positionen in dieser Reihenfolge passen:
+    +1, wenn der Abstand zweier Seitenzahlen dem Abstand ihrer Positionen entspricht,
+    -1, wenn sie rückwärts laufen."""
+    found = [(pos, n) for pos, n in enumerate(numbers) if n is not None]
+    return sum((nb - na == pb - pa) - (nb < na) for (pa, na), (pb, nb) in zip(found, found[1:]))
+
+
+def back_first(results, numbers):
+    """Ob der Scanner je Blatt zuerst die Rückseite geliefert hat.
+
+    1. Seitenzahlen: die Reihenfolge, in der sie besser aufsteigen, gewinnt.
+    2. Blätter mit genau einer leeren Seite: die leere ist fast immer die Rückseite.
+    3. sonst DUPLEX_DEFAULT.
+    """
+    if DUPLEX_ORDER in ("front-first", "back-first"):
+        return DUPLEX_ORDER == "back-first"
+
+    swapped = [numbers[j] for i in range(0, len(numbers), 2) for j in (i + 1, i)]
+    front, back = sequence_score(numbers), sequence_score(swapped)
+    if front != back:
+        log(f"Einlegerichtung aus Seitenzahlen {numbers} erkannt: {'Rückseite' if back > front else 'Vorderseite'} zuerst")
+        return back > front
+
+    evidence = 0
+    for i in range(0, len(results), 2):
+        first_blank, second_blank = results[i] is None, results[i + 1] is None
+        if first_blank != second_blank:
+            evidence += 1 if first_blank else -1
+    if evidence:
+        log(f"Einlegerichtung aus leeren Rückseiten erkannt: {'Rückseite' if evidence > 0 else 'Vorderseite'} zuerst")
+        return evidence > 0
+    return DUPLEX_DEFAULT == "back-first"
 
 
 def main():
@@ -174,7 +277,8 @@ def main():
         log(f"Lage des Dokuments: {doc_angle}° (je Seite: {' '.join(f'{a}/{c:.1f}' for a, c in osd)})")
 
     # 2. Seiten aufbereiten
-    results = []
+    detect_order = args.duplex and DUPLEX_ORDER == "auto" and len(args.pages) >= 2
+    results, numbers = [], []
     for i, path in enumerate(args.pages):
         name = os.path.basename(path)
         img = Image.open(path)
@@ -194,22 +298,27 @@ def main():
             skew = skew_angle(img)
             if abs(skew) >= 0.2:
                 log(f"{name}: Schieflage {skew:+.2f}° korrigiert")
-                img = img.rotate(skew, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
+                if abs(skew) >= SKEW_WARN:
+                    log(f"{name}: Blatt wurde stark schief eingezogen – Ränder können fehlen, ggf. neu scannen")
+                img = straighten(img, skew)
 
         if SKIP_BLANK:
             blank, ratio = is_blank(img)
             if blank:
                 log(f"{name}: leer ({ratio:.3f}% Tinte), wird übersprungen")
                 results.append(None)
+                numbers.append(None)
                 continue
 
+        numbers.append(page_number(img) if detect_order else None)
         results.append(encode(img))
 
-    # 3. Reihenfolge: Steht das Dokument auf dem Kopf, wurde der Stapel gewendet
-    #    eingelegt und der Scanner liefert je Blatt zuerst die Rückseite.
+    # 3. Reihenfolge: Liegt der Stapel mit der Schrift nach oben im Einzug, liefert der
+    #    Scanner je Blatt zuerst die Rückseite. Ob die Seiten dabei auf dem Kopf stehen,
+    #    hängt nur davon ab, welche Kante zuerst eingezogen wurde – das sagt nichts aus.
     order = list(range(len(results)))
-    if args.duplex and DUPLEX_SWAP_ON_180 and doc_angle == 180 and len(results) % 2 == 0:
-        log("Stapel war gewendet, tausche Vorder- und Rückseiten")
+    if args.duplex and len(results) % 2 == 0 and back_first(results, numbers):
+        log("Rückseiten kamen zuerst, tausche Vorder- und Rückseiten")
         order = [j for i in range(0, len(results), 2) for j in (i + 1, i)]
 
     images = [results[i] for i in order if results[i] is not None]

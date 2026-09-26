@@ -18,7 +18,7 @@ fi
 log "Pakete installieren"
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    sane-utils libsane1 scanbd tesseract-ocr tesseract-ocr-osd \
+    sane-utils libsane1 scanbd tesseract-ocr tesseract-ocr-osd tesseract-ocr-deu \
     python3 python3-numpy python3-pil python3-img2pdf cifs-utils util-linux usbutils
 
 log "Skripte nach ${PREFIX} installieren"

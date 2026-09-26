@@ -58,9 +58,13 @@ Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/do
   Stellschrauben: `WHITE_POINT` (kleiner = aggressiver), `INK_GAMMA`, `COLOR_BOOST`.
 - **Schieflage:** Der Treiber korrigiert nur bei klarer Papierkante (`SWDESKEW`); zusätzlich richtet
   `process.py` die Seite an den Textzeilen aus (`DESKEW`).
-- **Drehung & Reihenfolge:** Die Lage wird per Tesseract-OSD für das ganze Dokument per Mehrheit bestimmt.
-  Steht der Stapel auf dem Kopf, war er gewendet eingelegt – dann werden Vorder- und Rückseiten getauscht
-  (`DUPLEX_SWAP_ON_180`).
+- **Drehung:** Die Lage wird per Tesseract-OSD für das ganze Dokument per Mehrheit bestimmt.
+- **Duplex-Reihenfolge:** Liegt der Stapel mit der Schrift nach oben im Einzug, liefert der Scanner je Blatt
+  zuerst die Rückseite. `DUPLEX_ORDER=auto` erkennt das aus den Seitenzahlen in Kopf-/Fußzeile
+  („Seite 3“, „2 von 4“) bzw. aus Blättern mit leerer Rückseite; sonst gilt `DUPLEX_DEFAULT`
+  (Standard: Vorderseite zuerst = Schrift nach unten einlegen).
+- **Schieflage** bis ±45° wird korrigiert. Ab 3° steht eine Warnung im Log: Bei so schief eingezogenen
+  Blättern können Ränder außerhalb des Scanbereichs gelegen haben.
 - **Leerseiten** entfernt `process.py` (`BLANK_THRESHOLD`, Rand wird ignoriert), nicht der Treiber – sonst verrutschen die
   Vorder-/Rückseiten-Paare.
 - **Zuschnitt** im Treiber (`SWCROP`) ist aus, weil er bei dünnem Papier in den Inhalt schneidet.

@@ -25,12 +25,21 @@ AUTOROTATE=1
 ROTATE_MIN_CONF=2
 # Ab dieser Konfidenz darf eine einzelne Seite abweichend gedreht werden (Querformat)
 PAGE_ROTATE_CONF=6
-# Steht das Dokument auf dem Kopf, war der Stapel gewendet: Vorder-/Rückseiten tauschen
-DUPLEX_SWAP_ON_180=1
+# Duplex-Reihenfolge. Liegt der Stapel mit der Schrift nach oben im Einzug, liefert der
+# Scanner je Blatt zuerst die Rückseite.
+# auto: aus Seitenzahlen (Kopf-/Fußzeile) bzw. Blättern mit einer leeren Seite erkennen, sonst DUPLEX_DEFAULT
+# front-first / back-first: fest vorgeben
+DUPLEX_ORDER=auto
+# back-first = Schrift nach oben eingelegt, front-first = Schrift nach unten
+DUPLEX_DEFAULT=front-first
+# Sprache für das Lesen der Seitenzahlen (tesseract-ocr-deu)
+OCR_LANG=deu
 
 # Schieflage anhand der Textzeilen korrigieren (bis zu DESKEW_MAX_ANGLE Grad)
 DESKEW=1
-DESKEW_MAX_ANGLE=10
+DESKEW_MAX_ANGLE=45
+# Ab dieser Schieflage wird im Log gewarnt, dass Ränder außerhalb des Scanbereichs lagen
+SKEW_WARN=3
 
 # Weißabgleich auf den Papierton, getöntes Papier und durchscheinende Rückseiten
 # werden weiß, farbige Tinte bleibt erhalten.
