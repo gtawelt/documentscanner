@@ -12,6 +12,7 @@ Läuft in einem LXC-Container auf dem Proxmox-Host `pve-len`, an dem der Scanner
                  Schieflage anhand der Textzeilen korrigieren, Leerseiten entfernen
                  PNG mit 8-Farben-Palette (~150–250 KB/Seite)
                  img2pdf → lokaler Spool
+               + unbearbeitetes Roh-PDF (Scanner-Reihenfolge) → Spool/raw
              → deliver.sh (sofort + alle 60 s per Timer)
                  → \\192.168.0.10\DATA\dokumente\scan → Paperless-ngx (OCR)
 ```
@@ -48,6 +49,8 @@ Danach Zugangsdaten für den Share in `/etc/documentscanner/smb.cred` eintragen 
 - Consume-Verzeichnis von Paperless auf `\\192.168.0.10\DATA\dokumente\scan` legen.
 - `PAPERLESS_CONSUMER_POLLING=10` setzen – auf SMB-Freigaben funktioniert inotify nicht.
 - Dateien werden erst als `*.pdf.tmp` geschrieben und dann umbenannt, Paperless sieht nie halbe Dateien.
+- Die unbearbeiteten Roh-PDFs liegen im Unterordner `raw\` des Shares. Paperless ignoriert ihn, solange
+  `PAPERLESS_CONSUMER_RECURSIVE` **nicht** gesetzt ist – sonst würden die Roh-PDFs mit importiert.
 
 ## Konfiguration
 Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/documentscanner.default](deploy/documentscanner.default)):
@@ -68,6 +71,10 @@ Alle Einstellungen stehen in `/etc/default/documentscanner` (Vorlage: [deploy/do
 - **Leerseiten** entfernt `process.py` (`BLANK_THRESHOLD`, Rand wird ignoriert), nicht der Treiber – sonst verrutschen die
   Vorder-/Rückseiten-Paare.
 - **Zuschnitt** im Treiber (`SWCROP`) ist aus, weil er bei dünnem Papier in den Inhalt schneidet.
+
+- **Roh-PDF:** `RAW_PDF=1` legt zu jedem Scan ein unbearbeitetes PDF in `raw\` ab (JPEG q90,
+  ~2 MB/Seite; `RAW_PDF_FORMAT=png` für verlustfrei, ~10 MB/Seite). Abgebrochene Scans (Papierstau)
+  landen dort ebenfalls, als `…_abgebrochen.pdf`.
 
 **Einstellen an echten Scans:** `KEEP_RAW=1` setzen, dann landen die unbearbeiteten Seiten in
 `/var/lib/documentscanner/raw/` (~25 MB/Seite!). Mit

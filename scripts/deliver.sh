@@ -16,7 +16,8 @@ log() {
 }
 
 shopt -s nullglob
-FILES=("${SPOOL_DIR}"/*.pdf)
+# Hauptverzeichnis und Unterordner (z. B. raw/) des Spools
+FILES=("${SPOOL_DIR}"/*.pdf "${SPOOL_DIR}"/*/*.pdf)
 [ "${#FILES[@]}" -eq 0 ] && exit 0
 
 # Share bei Bedarf (neu) mounten – systemd-Automount funktioniert im LXC nicht
@@ -35,7 +36,8 @@ flock 9
 RC=0
 for FILE in "${FILES[@]}"; do
     [ -f "${FILE}" ] || continue
-    NAME="$(basename "${FILE}")"
+    NAME="${FILE#"${SPOOL_DIR}"/}"
+    mkdir -p "$(dirname "${TARGET_DIR}/${NAME}")"
     # Erst unter .tmp kopieren, damit Paperless nie eine halbe Datei sieht
     if cp "${FILE}" "${TARGET_DIR}/${NAME}.tmp" && mv "${TARGET_DIR}/${NAME}.tmp" "${TARGET_DIR}/${NAME}"; then
         rm -f "${FILE}"

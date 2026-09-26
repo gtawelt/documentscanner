@@ -65,6 +65,9 @@ BLANK_MARGIN = env("BLANK_MARGIN", 0.06, float)
 IMAGE_FORMAT = env("IMAGE_FORMAT", "palette")
 PALETTE_COLORS = env("PALETTE_COLORS", 8, int)
 JPEG_QUALITY = env("JPEG_QUALITY", 75, int)
+# Unbearbeitetes Roh-PDF: jpeg (~1–2 MB/Seite) oder png (verlustfrei, ~10 MB/Seite)
+RAW_PDF_FORMAT = env("RAW_PDF_FORMAT", "jpeg")
+RAW_JPEG_QUALITY = env("RAW_JPEG_QUALITY", 90, int)
 
 
 def log(msg):
@@ -258,12 +261,33 @@ def back_first(results, numbers):
     return DUPLEX_DEFAULT == "back-first"
 
 
+def write_raw(pages, output):
+    """Rohseiten ohne jede Aufbereitung in Scanner-Reihenfolge als PDF schreiben."""
+    images = []
+    for path in pages:
+        img = Image.open(path)
+        buf = io.BytesIO()
+        if RAW_PDF_FORMAT == "png":
+            img.save(buf, "PNG", dpi=(RESOLUTION, RESOLUTION), optimize=True)
+        else:
+            img.save(buf, "JPEG", quality=RAW_JPEG_QUALITY, dpi=(RESOLUTION, RESOLUTION), optimize=True)
+        images.append(buf.getvalue())
+    with open(output, "wb") as f:
+        f.write(img2pdf.convert(images))
+    log(f"Roh-PDF: {len(images)} Seiten, {os.path.getsize(output) // 1024} KB")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", required=True)
     parser.add_argument("--duplex", action="store_true")
+    parser.add_argument("--raw", action="store_true", help="Seiten unbearbeitet (nur komprimiert) als PDF schreiben")
     parser.add_argument("pages", nargs="+")
     args = parser.parse_args()
+
+    if args.raw:
+        return write_raw(args.pages, args.output)
 
     # 1. Lage des Dokuments
     osd = [orientation(p) if AUTOROTATE else (0, 0.0) for p in args.pages]

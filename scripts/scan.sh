@@ -22,6 +22,8 @@ SWCROP="${SWCROP:-no}"
 SWDESKEW="${SWDESKEW:-yes}"
 SWDESPECK="${SWDESPECK:-1}"
 KEEP_RAW="${KEEP_RAW:-0}"
+RAW_PDF="${RAW_PDF:-1}"
+RAW_PDF_SUBDIR="${RAW_PDF_SUBDIR:-raw}"
 WORK_DIR="${WORK_DIR:-/var/lib/documentscanner/work}"
 FAILED_DIR="${FAILED_DIR:-/var/lib/documentscanner/failed}"
 RAW_DIR="${RAW_DIR:-/var/lib/documentscanner/raw}"
@@ -97,6 +99,20 @@ if [ "${#PAGES[@]}" -eq 0 ]; then
     log "Keine Seiten gescannt (scanimage rc=${RC})"
     rm -rf "${SCANDIR}"
     exit 0
+fi
+
+# Unbearbeitetes Roh-PDF in einen Unterordner des Shares (auch bei abgebrochenem Scan)
+if [ "${RAW_PDF}" = "1" ] && [ -z "${OUTPUT}" ]; then
+    RAW_NAME="${NAME}"
+    [ "${RC}" -ne 0 ] && RAW_NAME="${NAME}_abgebrochen"
+    mkdir -p "${SPOOL_DIR}/${RAW_PDF_SUBDIR}"
+    RAW_TARGET="${SPOOL_DIR}/${RAW_PDF_SUBDIR}/${RAW_NAME}.pdf"
+    if python3 "${SCRIPT_DIR}/process.py" --raw --output "${RAW_TARGET}.part" "${PAGES[@]}"; then
+        mv "${RAW_TARGET}.part" "${RAW_TARGET}"
+    else
+        rm -f "${RAW_TARGET}.part"
+        log "Roh-PDF konnte nicht erzeugt werden"
+    fi
 fi
 
 # Papierstau / Doppeleinzug: nicht weiterverarbeiten, sondern zur Kontrolle aufheben

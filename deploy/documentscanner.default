@@ -61,6 +61,15 @@ BLANK_THRESHOLD=0.05
 # Randbereich (Anteil je Seite), der bei der Leerseiten-Erkennung ignoriert wird
 BLANK_MARGIN=0.06
 
+# Zusätzlich ein unbearbeitetes PDF (Scanner-Rohbild, Scanner-Reihenfolge) in einen
+# Unterordner des Shares legen. Paperless ignoriert Unterordner, solange
+# PAPERLESS_CONSUMER_RECURSIVE nicht gesetzt ist.
+RAW_PDF=1
+RAW_PDF_SUBDIR=raw
+# jpeg (~1–2 MB/Seite) oder png (verlustfrei, ~10 MB/Seite)
+RAW_PDF_FORMAT=jpeg
+RAW_JPEG_QUALITY=90
+
 # Rohdaten jedes Scans in RAW_DIR aufheben (zum Einstellen der Aufbereitung, ~25 MB/Seite)
 KEEP_RAW=0
 RAW_DIR=/var/lib/documentscanner/raw
